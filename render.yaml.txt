@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: wa03-opps-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wa03-db
+          property: connectionString
+      - key: SAM_API_KEY
+        sync: false
+    autoDeploy: true
+
+  - type: cron
+    name: wa03-opps-cron
+    env: python
+    plan: starter # cron jobs are paid; lowest tier is fine
+    schedule: "20 0 * * *"  # 00:20 UTC ~ 5:20 PM Pacific
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.fetcher --zip-file app/wa3_zips.txt --days 1 --page-size 10 --max-records 400 --sleep-between 8
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wa03-db
+          property: connectionString
+      - key: SAM_API_KEY
+        sync: false
+
+databases:
+  - name: wa03-db
+    plan: starter # choose paid so it doesn't expire
