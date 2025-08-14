@@ -1,7 +1,6 @@
-# app/db.py (psycopg v3)
+# app/db.py (psycopg v3 without extras)
 import os
 import psycopg
-from psycopg.extras import execute_batch
 
 def get_conn():
     """
@@ -79,13 +78,13 @@ def ensure_schema():
 def upsert_many(rows):
     """
     Efficiently UPSERT a list of dicts with keys matching UPSERT_SQL.
-    No-op if rows is empty.
+    Uses executemany (no psycopg.extras dependency).
     """
     if not rows:
         return
     with get_conn() as conn:
         with conn.cursor() as cur:
-            execute_batch(cur, UPSERT_SQL, rows, page_size=200)
+            cur.executemany(UPSERT_SQL, rows)
         conn.commit()
 
 def delete_expired():
