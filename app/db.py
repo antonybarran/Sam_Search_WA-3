@@ -6,11 +6,14 @@ from psycopg.extras import execute_batch
 def get_conn():
     """
     Connect to Postgres using the DATABASE_URL environment variable.
-    On Render, set this via: Environment -> Add from Database.
+    On Render, set this via: Environment → Add from Database.
     """
     url = os.environ["DATABASE_URL"]
     return psycopg.connect(url, sslmode="require")
 
+# --------------------------------------------------------------------
+# Schema
+# --------------------------------------------------------------------
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS opportunities (
   id TEXT PRIMARY KEY,
@@ -67,14 +70,17 @@ WHERE response_date IS NOT NULL AND response_date < CURRENT_DATE;
 """
 
 def ensure_schema():
-    """Create tables/indexes if they don't exist."""
+    """Create tables/indexes if they don't exist (safe to call repeatedly)."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(SCHEMA_SQL)
         conn.commit()
 
 def upsert_many(rows):
-    """Batch UPSERT of a list of dicts shaped like the UPSERT_SQL fields."""
+    """
+    Efficiently UPSERT a list of dicts with keys matching UPSERT_SQL.
+    No-op if rows is empty.
+    """
     if not rows:
         return
     with get_conn() as conn:
