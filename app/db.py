@@ -1,7 +1,7 @@
-# app/db.py
+# app/db.py (psycopg v3)
 import os
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.extras import execute_batch
 
 def get_conn():
     """
@@ -9,12 +9,8 @@ def get_conn():
     On Render, set this via: Environment -> Add from Database.
     """
     url = os.environ["DATABASE_URL"]
-    # Force TLS; Render Postgres requires SSL.
-    return psycopg2.connect(url, sslmode="require")
+    return psycopg.connect(url, sslmode="require")
 
-# --------------------------------------------------------------------
-# Schema
-# --------------------------------------------------------------------
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS opportunities (
   id TEXT PRIMARY KEY,
@@ -34,11 +30,10 @@ CREATE TABLE IF NOT EXISTS opportunities (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Helpful indexes for filters used by the API
-CREATE INDEX IF NOT EXISTS idx_opps_zip   ON opportunities(zip);
-CREATE INDEX IF NOT EXISTS idx_opps_naics ON opportunities(naics);
-CREATE INDEX IF NOT EXISTS idx_opps_due   ON opportunities(response_date);
-CREATE INDEX IF NOT EXISTS idx_opps_posted ON opportunities(posted_date);
+CREATE INDEX IF NOT EXISTS idx_opps_zip     ON opportunities(zip);
+CREATE INDEX IF NOT EXISTS idx_opps_naics   ON opportunities(naics);
+CREATE INDEX IF NOT EXISTS idx_opps_due     ON opportunities(response_date);
+CREATE INDEX IF NOT EXISTS idx_opps_posted  ON opportunities(posted_date);
 """
 
 UPSERT_SQL = """
@@ -72,36 +67,19 @@ WHERE response_date IS NOT NULL AND response_date < CURRENT_DATE;
 """
 
 def ensure_schema():
-    """Create tables/indexes if they don't exist (safe to call repeatedly)."""
+    """Create tables/indexes if they don't exist."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(SCHEMA_SQL)
         conn.commit()
 
 def upsert_many(rows):
-    """
-    Efficiently UPSERT a list of dicts shaped like:
-      {
-        "id": str,
-        "title": str,
-        "solicitation_number": str,
-        "posted_date": "YYYY-MM-DD" or None,
-        "response_date": "YYYY-MM-DD" or None,
-        "set_aside": str,
-        "naics": str,
-        "org": str,
-        "city": str,
-        "state": str,
-        "zip": str,
-        "url": str,
-        "description": str,
-      }
-    """
+    """Batch UPSERT of a list of dicts shaped like the UPSERT_SQL fields."""
     if not rows:
         return
     with get_conn() as conn:
         with conn.cursor() as cur:
-            psycopg2.extras.execute_batch(cur, UPSERT_SQL, rows, page_size=200)
+            execute_batch(cur, UPSERT_SQL, rows, page_size=200)
         conn.commit()
 
 def delete_expired():
