@@ -325,3 +325,25 @@ if __name__ == "__main__":
     except Exception as e:
         print("[FATAL]", e)
         sys.exit(1)
+def main():
+    args = parse_args()
+    try:
+        ensure_schema()
+        fetch_and_store(args)
+        if args.delete_expired:
+            delete_expired()
+        print("[OK] fetcher completed")
+        return 0
+    except SystemExit as se:
+        code = int(getattr(se, "code", 1) or 0)
+        print(f"[EXIT] {code}")
+        return code
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[WARN] non-fatal error in fetcher:", e)
+        return 0   # keep cron green on transient errors
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())
